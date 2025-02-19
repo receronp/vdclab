@@ -1,0 +1,93 @@
+﻿Prácticas de Visualización de Datos Científicos
+Máster Universitario en Computación en la Nube y de Altas Prestaciones
+Depto. Sistemas Informáticos y Computación
+
+Paco Abad. fjabad@dsic.upv.es
+
+Instrucciones de uso:
+
+* Si encuentras que las instrucciones siguientes están incompletas, desfasadas o erróneas para tu plataforma, por favor, añade las instrucciones que consideres y mándame la nueva version. *
+
+
+Windows
+-------
+
+* Requisitos:
+Sólo necesitas tener instalado el Visual Studio 2022 (como alumno de la UPV lo puedes bajar desde http://www.upv.es/id/181). Instala la opción de "Desarrollo para el escritorio con C++".
+Es *muy* importante actualizar el driver de la tarjeta gráfica de tu ordenador, para asegurarte de tener acceso a toda la capacidad del hardware.
+
+* Prácticas:
+El paquete de las prácticas contiene todas las bibliotecas necesarias, y sólo tendrás que abrir el fichero vdclab.sln en el Visual Studio para ejecutar los ejemplos y realizar las prácticas. Si, al abrir el proyecto por primera vez, Visual Studio dice que no encuentra las herramientas de compilación, acepta la opción de redestinar los proyectos, o selecciona la opción Redestinar solución al pulsar con el botón derecho del ratón en la Solución, dentro del Explorador de soluciones.
+
+Durante la ejecución de las prácticas se pueden producir excepciones como respuesta a errores. Si quieres que el depurador se detenga en la línea que ha generado la excepción para poder ver el estado de la aplicación en ese momento, en Visual Studio debes:
+1. Selecciona la opción Depurar\Ventanas\Configuración de excepciones
+2. En el panel que aparece, botón derecho en el apartado "C++ Exceptions", y pulsa en Agregar
+3. Añade a la lista la opción std::runtime_error
+
+
+Si quieres utilizar otro compilador en Windows, puedes usar los ficheros de CMake proporcionados para generar los proyectos necesarios. Puedes seguir las instrucciones de las otras plataformas para usar CMake.
+
+
+Linux
+-----
+
+* Requisitos:
+
+Tendrás que instalar las siguientes dependencias:
+
+sudo apt-get install build-essential libsdl2-dev libsdl2-ttf-dev libfreeimage-dev cmake libglew-dev libboost-dev libgtk-3-dev git
+
+
+* Prácticas
+Crea un directorio llamado, por ejemplo, _build dentro del directorio de las prácticas. En una consola, entra en dicho directorio y ejecuta:
+
+cmake ..
+
+Luego, puedes ejecutar:
+
+make install
+
+Esa llamada compilará todos los ejemplos y copiará los ejecutables al directorio bin dentro del directorio de prácticas (no instala nada en el sistema).
+
+
+Mac OS
+------
+
+* Requisitos:
+Tendrás que instalar Xcode y las herramientas de desarrollo. También podrás utilizar gcc. Para ello utiliza las instrucciones de Linux. 
+Necesitarás los siguientes paquetes:
+
+-Boost, DevIL, CMake
+
+Lo más sencillo es que utilices un gestor de paquetes como Homebrew (http://brew.sh). Una vez instales el gestor, puedes instalar las dependencias así:
+
+brew install boost
+brew install cmake
+brew install freeimage
+brew install pkg-config
+brew install gtk+3
+brew install sdl2
+brew install sdl2_ttf
+brew install glew
+
+
+Puede ser que al instalar algún paquete, debas instalar sus dependencias.
+También tienes que instalar el Framework de SDL2 (descargable desde libsdl.org) Deberá quedar instalado en el directorio /Library/Frameworks/SDL2.framework
+Haz lo mismo con SDL_ttf: http://www.libsdl.org/projects/SDL_ttf/
+
+
+* Prácticas 
+A continuación, descomprime el ZIP con las prácticas y crea un directorio llamado, por ejemplo, _build. Desde una consola, entra al directorio _build y ejecuta:
+
+cmake -G Xcode <source-dir>
+
+donde <source-dir> es el directorio raíz de las prácticas (donde se encuentra el fichero vdclab.sln). Si has creado el directorio _build dentro de la carpeta de las prácticas, tendrás que hacer:
+
+cmake -G Xcode ..
+
+y abrir el fichero VDCLAB.xcodeproj
+
+
+ 
+ 
+Revision: 64
