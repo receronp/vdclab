@@ -4,46 +4,102 @@
 
 TODO:
 
-Construye un modelo de PGUPV con una representación de mapa de alturas con la malla dada.
-La malla de entrada es de dimensión 2, y tiene un atributo de tipo float.
-Si las coordenadas de una muestra son (x, y), y su atributo es h, el vértice que lo representará
-estará en:
+Construye un modelo de PGUPV con una representaciï¿½n de mapa de alturas con la malla dada.
+La malla de entrada es de dimensiï¿½n 2, y tiene un atributo de tipo float.
+Si las coordenadas de una muestra son (x, y), y su atributo es h, el vï¿½rtice que lo representarï¿½
+estarï¿½ en:
 
 glm::vec3(x, h, -y)
 
-Si las celdas son triángulos (es decir, la función getCellSamples devuelve 3), se deberá dibujar un triángulo
-de OpenGL por celda. Si las celdas son cuadriláteros (es decir, la función getCellSamples devuelve 4), se deberán dibujar 2
-triángulos por celda.
+Si las celdas son triï¿½ngulos (es decir, la funciï¿½n getCellSamples devuelve 3), se deberï¿½ dibujar un triï¿½ngulo
+de OpenGL por celda. Si las celdas son cuadrilï¿½teros (es decir, la funciï¿½n getCellSamples devuelve 4), se deberï¿½n dibujar 2
+triï¿½ngulos por celda.
 
-También deberás establecer el color de cada vértice. Diseña tu propio mapa de colores, teniendo en cuenta el rango de
+Tambiï¿½n deberï¿½s establecer el color de cada vï¿½rtice. Diseï¿½a tu propio mapa de colores, teniendo en cuenta el rango de
 valores de las muestras de entrada.
 
 */
 
+struct MinMaxSamples {
+	size_t minIdx, // Ãndice de la muestra con valor mÃ­nimo
+		maxIdx; // Ãndice de la muestra con el valor mÃ¡ximo
+};
+
+/**
+Devuelve el Ã­ndice de las muestras con el valor mÃ­nimo y mÃ¡ximo
+\param grid la malla
+\return un objecto MinMaxCells que contiene el Ã­ndice de ambas muestras
+*/
+
+MinMaxSamples findMinMaxSamples(const vdc::Grid<glm::vec2, float> &grid) {
+
+	// Inserta aquÃ­ tu cÃ³digo
+	float min = FLT_MAX, max = -FLT_MAX;
+	size_t minIdx = 0, maxIdx = 0;
+
+	// Recorre todas las muestras de la malla y busca el valor mÃ­nimo y mÃ¡ximo
+	for (size_t sampleIdx = 0; sampleIdx < grid.numSamples(); sampleIdx++) {
+		float v = grid.getSampleValue(sampleIdx);
+		if (v < min) {
+			min = v;
+			minIdx = sampleIdx;
+		}
+		if (v > max) {
+			max = v;
+			maxIdx = sampleIdx;
+		}
+	}
+
+	return MinMaxSamples{minIdx, maxIdx};
+}
+
 std::shared_ptr<PGUPV::Model> vdc::build2DHeightMapFromGrid(const vdc::Grid<glm::vec2, float>& g) {
 	auto model = std::make_shared<Model>();
 
-	glm::vec2 min, max;
-	min = max = g.getSamplePosition(0);
 	std::vector<glm::vec3> coordinates;
+	std::vector<glm::vec4> colors;
+	std::vector<unsigned int> indices;
+
+	// Obtener valores mÃ­nimos y mÃ¡ximos para normalizar colores
+	MinMaxSamples minMax = findMinMaxSamples(g);
+	float minHeight = g.getSampleValue(minMax.minIdx);
+	float maxHeight = g.getSampleValue(minMax.maxIdx);
+
+	// Recorrer las muestras para generar los vÃ©rtices y los colores
 	for (size_t i = 0; i < g.numSamples(); i++) {
-		auto pi = g.getSamplePosition(i);
-		min = glm::min(min, pi);
-		max = glm::max(max, pi);
+		glm::vec2 pos = g.getSamplePosition(i);
+		float height = g.getSampleValue(i);
+
+		// Convertir a coordenadas 3D
+		coordinates.push_back(glm::vec3(pos.x, height, -pos.y));
+
+		// Generar un color basado en el valor de altura (mapa de colores simple)
+		float t = (height - minHeight) / (maxHeight - minHeight); // NormalizaciÃ³n [0,1]
+		colors.push_back(glm::vec4(t, 0.0f, 1.0f - t, 1.0f));	  // Color degradado entre azul y rojo
 	}
 
-	coordinates.push_back(glm::vec3(min.x, 0.0f, -min.y));
-	coordinates.push_back(glm::vec3(max.x, 0.0f, -min.y));
-	coordinates.push_back(glm::vec3(max.x, 0.0f, -max.y));
-	coordinates.push_back(glm::vec3(min.x, 0.0f, -max.y));
+	// Recorrer las celdas para construir los triÃ¡ngulos
+	for (size_t cellIdx = 0; cellIdx < g.numCells(); cellIdx++) {
+		size_t cellSamples[4];
+		size_t nc = g.getCellSamples(cellIdx, cellSamples);
 
-	std::vector<glm::vec4> colors;
-	colors.push_back(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-	colors.push_back(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-	colors.push_back(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-	colors.push_back(glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
+		// Si es un triÃ¡ngulo, agregar un solo triÃ¡ngulo
+		if (nc == 3) {
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[1]);
+			indices.push_back(cellSamples[2]);
+		}
+		// Si es un cuadrilÃ¡tero, dividir en dos triÃ¡ngulos
+		else if (nc == 4) {
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[1]);
+			indices.push_back(cellSamples[2]);
 
-	std::vector<unsigned int> indices{ 0, 1, 2, 0, 2, 3 };
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[2]);
+			indices.push_back(cellSamples[3]);
+		}
+	}
 
 	// Malla
 	auto base = std::make_shared<Mesh>();
@@ -61,7 +117,7 @@ float secretFunc(float, float);
 
 
 /**
-Dada una malla, asigna a cada muestra su valor (dada su posición)
+Dada una malla, asigna a cada muestra su valor (dada su posiciï¿½n)
 */
 void fillSamples(vdc::Grid<glm::vec2, float>& grid) {
 	for (size_t i = 0; i < grid.numSamples(); i++) {
@@ -83,12 +139,12 @@ std::unique_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::buildUniformGrid(const 
 /**
 TODO:
 
-Cambia en los siguientes métodos la forma de construir las mallas para que, con el mismo número de muestras
-que la malla uniforme, se obtenga una mejor aproximación a la función original.
-La versión que se entrega define todas las mallas iguales (las muestras están equiespaciadas)
+Cambia en los siguientes mï¿½todos la forma de construir las mallas para que, con el mismo nï¿½mero de muestras
+que la malla uniforme, se obtenga una mejor aproximaciï¿½n a la funciï¿½n original.
+La versiï¿½n que se entrega define todas las mallas iguales (las muestras estï¿½n equiespaciadas)
 */
 
-// Malla rectilínea
+// Malla rectilï¿½nea
 std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
 	std::vector<float> posX;
 	for (int i = 0; i < horizontalVtcs; i++) {
@@ -159,7 +215,7 @@ std::unique_ptr<vdc::UnstructuredTriangleGrid<glm::vec2, float>> vdc::buildUnstr
 /**
 TODO:
 
-Tendrás que implementar el algoritmo de derivación visto en clase.
+Tendrï¿½s que implementar el algoritmo de derivaciï¿½n visto en clase.
 
 */
 
