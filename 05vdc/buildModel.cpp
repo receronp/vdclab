@@ -1,3 +1,4 @@
+#include <random>
 #include "buildModel.h"
 
 /**
@@ -145,28 +146,45 @@ La versi�n que se entrega define todas las mallas iguales (las muestras est�
 */
 
 // Malla rectil�nea
-std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
-	std::vector<float> posX;
-	for (int i = 0; i < horizontalVtcs; i++) {
-		posX.push_back((max.x - min.x) * i / (horizontalVtcs - 1) + min.x);
-	}
-	std::vector<float> posY;
-	for (int i = 0; i < verticalVtcs; i++) {
-		posY.push_back((max.y - min.y) * i / (verticalVtcs - 1) + min.y);
-	}
+std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(
+    const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
+
+    std::vector<float> posX, posY;
+
+    for (int i = 0; i < horizontalVtcs; i++) {
+        float t = static_cast<float>(i) / (horizontalVtcs - 1);
+        posX.push_back(min.x + (max.x - min.x) * (t * t)); // Más denso en un extremo
+    }
+
+    for (int i = 0; i < verticalVtcs; i++) {
+        float t = static_cast<float>(i) / (verticalVtcs - 1);
+        posY.push_back(min.y + (max.y - min.y) * std::sin(t * glm::half_pi<float>())); // Más denso en el centro
+    }
+
 	auto rectilinearGrid = std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>(new vdc::RectilinearGrid<glm::vec2, float>(posX, posY));
 	fillSamples(*rectilinearGrid);
 	return rectilinearGrid;
 }
 
 // Malla estructurada
-std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
+std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(
+	const int horizontalVtcs, const int verticalVtcs, const glm::vec2 &min, const glm::vec2 &max) {
+
 	auto structuredGrid = std::unique_ptr < vdc::StructuredGrid<glm::vec2, float>>(new vdc::StructuredGrid<glm::vec2, float>({ horizontalVtcs, verticalVtcs }));
 	size_t i = 0;
+
 	auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
+	std::default_random_engine generator;
+	std::uniform_real_distribution<float> jitter(-0.1f, 0.1f); // Perturbación pequeña
+
 	for (int y = 0; y < verticalVtcs; y++) {
 		for (int x = 0; x < horizontalVtcs; x++) {
 			glm::vec2 pos = min + glm::vec2{ x, y } *offset;
+
+			// Perturbación aleatoria dentro de un rango
+			pos.x += jitter(generator) * offset.x;
+			pos.y += jitter(generator) * offset.y;
+
 			structuredGrid->setSamplePosition(i++, pos);
 		}
 	}
@@ -175,41 +193,73 @@ std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(
 }
 
 // Malla no estructurada
-std::unique_ptr<vdc::UnstructuredTriangleGrid<glm::vec2, float>> vdc::buildUnstructuredGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
+std::unique_ptr<vdc::UnstructuredTriangleGrid<glm::vec2, float>>
+vdc::buildUnstructuredGrid(const int horizontalVtcs, const int verticalVtcs,
+                           const glm::vec2& min, const glm::vec2& max) {
+
 	auto unstructuredGrid = std::unique_ptr < vdc::UnstructuredTriangleGrid<glm::vec2, float>>(
 		new vdc::UnstructuredTriangleGrid<glm::vec2, float>(
 			{ static_cast<size_t>(horizontalVtcs) * verticalVtcs, 2ULL * (horizontalVtcs - 1) * (verticalVtcs - 1) }));
-	size_t i = 0;
+						
+    std::default_random_engine generator(std::random_device{}());
+    std::uniform_real_distribution<float> jitter(-0.1f, 0.1f);
 
-	auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
-	for (int y = 0; y < verticalVtcs; y++) {
-		for (int x = 0; x < horizontalVtcs; x++) {
-			glm::vec2 pos = min + glm::vec2{ x, y } *offset;
-			unstructuredGrid->setSamplePosition(i++, pos);
-		}
-	}
+    size_t i = 0;
+    auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
 
-	fillSamples(*unstructuredGrid);
-	assert(i == horizontalVtcs * verticalVtcs);
+    // Generar posiciones con variación solo en puntos internos
+    for (int y = 0; y < verticalVtcs; y++) {
+        for (int x = 0; x < horizontalVtcs; x++) {
+            glm::vec2 pos = min + glm::vec2{x, y} * offset;
 
-	i = 0;
-	for (int cellY = 0; cellY < verticalVtcs - 1; cellY++) {
-		for (int cellX = 0; cellX < horizontalVtcs - 1; cellX++) {
+            // Agregar ruido solo si no es un punto de borde
+            if (x > 0 && x < horizontalVtcs - 1 && y > 0 && y < verticalVtcs - 1) {
+                pos.x += jitter(generator) * offset.x;
+                pos.y += jitter(generator) * offset.y;
+            }
+
+            unstructuredGrid->setSamplePosition(i++, pos);
+        }
+    }
+
+    fillSamples(*unstructuredGrid);
+
+    // Conectar los puntos en un patrón Zig-Zag
+    i = 0;
+    for (int cellY = 0; cellY < verticalVtcs - 1; cellY++) {
+        for (int cellX = 0; cellX < horizontalVtcs - 1; cellX++) {
+            size_t v0 = cellX + cellY * horizontalVtcs;
+            size_t v1 = v0 + 1;
+            size_t v2 = v0 + horizontalVtcs;
+            size_t v3 = v2 + 1;
+
+            // Alternar triangulación para mejorar la representación
 			size_t v[3];
-			size_t firstV = cellX + horizontalVtcs * cellY;
-			v[0] = firstV;
-			v[1] = firstV + 1;
-			v[2] = v[1] + horizontalVtcs;
-			unstructuredGrid->setCell(i++, v);
+            if ((cellX + cellY) % 2 == 0) {
+				v[0] = v0;
+				v[1] = v1;
+				v[2] = v3;	
+                unstructuredGrid->setCell(i++, v);
 
-			v[0] = firstV;
-			v[1] = firstV + 1 + horizontalVtcs;
-			v[2] = v[1] - 1;
-			unstructuredGrid->setCell(i++, v);
-		}
-	}
+				v[0] = v0;
+				v[1] = v3;
+				v[2] = v2;	
+                unstructuredGrid->setCell(i++, v);
+            } else {
+				v[0] = v1;
+				v[1] = v3;
+				v[2] = v2;	
+                unstructuredGrid->setCell(i++, v);
+
+				v[0] = v1;
+				v[1] = v2;
+				v[2] = v0;	
+                unstructuredGrid->setCell(i++, v);
+            }
+        }
+    }
 	assert(i == (horizontalVtcs - 1) * (verticalVtcs - 1) * 2);
-	return unstructuredGrid;
+    return unstructuredGrid;
 }
 
 /**
