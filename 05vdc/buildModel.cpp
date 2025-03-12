@@ -269,13 +269,47 @@ Tendr�s que implementar el algoritmo de derivaci�n visto en clase.
 
 */
 
-std::shared_ptr<vdc::StructuredGrid<glm::vec2, glm::vec2>> vdc::derivative(const vdc::UniformGrid<glm::vec2, float>& g) {
-	std::vector<int> dims{ g.getNumSamplesPerDimension(0), g.getNumSamplesPerDimension(1) };
-	auto result = std::make_shared<vdc::StructuredGrid<glm::vec2, glm::vec2>>(dims);
+std::shared_ptr<vdc::StructuredGrid<glm::vec2, glm::vec2>>
+vdc::derivative(const vdc::UniformGrid<glm::vec2, float> &g) {
+	// Obtener dimensiones de la malla
+	int nx = g.getNumSamplesPerDimension(0);
+	int ny = g.getNumSamplesPerDimension(1);
+	auto result = std::make_shared<vdc::StructuredGrid<glm::vec2, glm::vec2>>(std::vector<int>{nx, ny});
 
-	for (size_t i = 0; i < g.numSamples(); i++) {
-		result->setSamplePosition(i, g.getSamplePosition(i));
-		result->setSampleValue(i, glm::vec2(1, 1));
+	// Obtener tamaño de celda en cada dirección
+	float dx = (g.getSamplePosition(1).x - g.getSamplePosition(0).x);
+	float dy = (g.getSamplePosition(nx).y - g.getSamplePosition(0).y);
+
+	// Calcular derivadas parciales
+	for (int y = 0; y < ny; y++) {
+		for (int x = 0; x < nx; x++) {
+			int i = x + y * nx; // Índice lineal
+
+			float dfdx = 0.0f, dfdy = 0.0f;
+
+			// Derivada en X
+			if (x > 0 && x < nx - 1) {
+				dfdx = (g.getSampleValue(i + 1) - g.getSampleValue(i - 1)) / (2 * dx); // Diferencias centrales
+			} else if (x == 0) {
+				dfdx = (g.getSampleValue(i + 1) - g.getSampleValue(i)) / dx; // Diferencias hacia adelante
+			} else {
+				dfdx = (g.getSampleValue(i) - g.getSampleValue(i - 1)) / dx; // Diferencias hacia atrás
+			}
+
+			// Derivada en Y
+			if (y > 0 && y < ny - 1) {
+				dfdy = (g.getSampleValue(i + nx) - g.getSampleValue(i - nx)) / (2 * dy); // Diferencias centrales
+			} else if (y == 0) {
+				dfdy = (g.getSampleValue(i + nx) - g.getSampleValue(i)) / dy; // Diferencias hacia adelante
+			} else {
+				dfdy = (g.getSampleValue(i) - g.getSampleValue(i - nx)) / dy; // Diferencias hacia atrás
+			}
+
+			// Asignar posición y valor de la derivada
+			result->setSamplePosition(i, g.getSamplePosition(i));
+			result->setSampleValue(i, glm::vec2(dfdx, dfdy));
+		}
 	}
+
 	return result;
 }
