@@ -1,49 +1,87 @@
+#include <random>
 #include "buildModel.h"
 
+
+struct MinMaxSamples {
+	size_t minIdx, // √çndice de la muestra con valor m√≠nimo
+		maxIdx; // √çndice de la muestra con el valor m√°ximo
+};
+
 /**
-
-TODO:
-
-Construye un modelo de PGUPV con una representaciÛn de mapa de alturas con la malla dada.
-La malla de entrada es de dimensiÛn 2, y tiene un atributo de tipo float.
-Si las coordenadas de una muestra son (x, y), y su atributo es h, el vÈrtice que lo representar·
-estar· en:
-
-glm::vec3(x, h, -y)
-
-Si las celdas son tri·ngulos (es decir, la funciÛn getCellSamples devuelve 3), se deber· dibujar un tri·ngulo
-de OpenGL por celda. Si las celdas son cuadril·teros (es decir, la funciÛn getCellSamples devuelve 4), se deber·n dibujar 2
-tri·ngulos por celda.
-
-TambiÈn deber·s establecer el color de cada vÈrtice. DiseÒa tu propio mapa de colores, teniendo en cuenta el rango de
-valores de las muestras de entrada.
-
+Devuelve el √≠ndice de las muestras con el valor m√≠nimo y m√°ximo
+\param grid la malla
+\return un objecto MinMaxCells que contiene el √≠ndice de ambas muestras
 */
+
+MinMaxSamples findMinMaxSamples(const vdc::Grid<glm::vec2, float> &grid) {
+
+	// Inserta aqu√≠ tu c√≥digo
+	float min = FLT_MAX, max = -FLT_MAX;
+	size_t minIdx = 0, maxIdx = 0;
+
+	// Recorre todas las muestras de la malla y busca el valor m√≠nimo y m√°ximo
+	for (size_t sampleIdx = 0; sampleIdx < grid.numSamples(); sampleIdx++) {
+		float v = grid.getSampleValue(sampleIdx);
+		if (v < min) {
+			min = v;
+			minIdx = sampleIdx;
+		}
+		if (v > max) {
+			max = v;
+			maxIdx = sampleIdx;
+		}
+	}
+
+	return MinMaxSamples{minIdx, maxIdx};
+}
 
 std::shared_ptr<PGUPV::Model> vdc::build2DHeightMapFromGrid(const vdc::Grid<glm::vec2, float>& g) {
 	auto model = std::make_shared<Model>();
 
-	glm::vec2 min, max;
-	min = max = g.getSamplePosition(0);
 	std::vector<glm::vec3> coordinates;
+	std::vector<glm::vec4> colors;
+	std::vector<unsigned int> indices;
+
+	// Obtener valores m√≠nimos y m√°ximos para normalizar colores
+	MinMaxSamples minMax = findMinMaxSamples(g);
+	float minHeight = g.getSampleValue(minMax.minIdx);
+	float maxHeight = g.getSampleValue(minMax.maxIdx);
+
+	// Recorrer las muestras para generar los v√©rtices y los colores
 	for (size_t i = 0; i < g.numSamples(); i++) {
-		auto pi = g.getSamplePosition(i);
-		min = glm::min(min, pi);
-		max = glm::max(max, pi);
+		glm::vec2 pos = g.getSamplePosition(i);
+		float height = g.getSampleValue(i);
+
+		// Convertir a coordenadas 3D
+		coordinates.push_back(glm::vec3(pos.x, height, -pos.y));
+
+		// Generar un color basado en el valor de altura (mapa de colores simple)
+		float t = (height - minHeight) / (maxHeight - minHeight); // Normalizaci√≥n [0,1]
+		colors.push_back(glm::vec4(t, 0.0f, 1.0f - t, 1.0f));	  // Color degradado entre azul y rojo
 	}
 
-	coordinates.push_back(glm::vec3(min.x, 0.0f, -min.y));
-	coordinates.push_back(glm::vec3(max.x, 0.0f, -min.y));
-	coordinates.push_back(glm::vec3(max.x, 0.0f, -max.y));
-	coordinates.push_back(glm::vec3(min.x, 0.0f, -max.y));
+	// Recorrer las celdas para construir los tri√°ngulos
+	for (size_t cellIdx = 0; cellIdx < g.numCells(); cellIdx++) {
+		size_t cellSamples[4];
+		size_t nc = g.getCellSamples(cellIdx, cellSamples);
 
-	std::vector<glm::vec4> colors;
-	colors.push_back(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-	colors.push_back(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-	colors.push_back(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-	colors.push_back(glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
+		// Si es un tri√°ngulo, agregar un solo tri√°ngulo
+		if (nc == 3) {
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[1]);
+			indices.push_back(cellSamples[2]);
+		}
+		// Si es un cuadril√°tero, dividir en dos tri√°ngulos
+		else if (nc == 4) {
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[1]);
+			indices.push_back(cellSamples[2]);
 
-	std::vector<unsigned int> indices{ 0, 1, 2, 0, 2, 3 };
+			indices.push_back(cellSamples[0]);
+			indices.push_back(cellSamples[2]);
+			indices.push_back(cellSamples[3]);
+		}
+	}
 
 	// Malla
 	auto base = std::make_shared<Mesh>();
@@ -61,7 +99,7 @@ float secretFunc(float, float);
 
 
 /**
-Dada una malla, asigna a cada muestra su valor (dada su posiciÛn)
+Dada una malla, asigna a cada muestra su valor (dada su posiciÔøΩn)
 */
 void fillSamples(vdc::Grid<glm::vec2, float>& grid) {
 	for (size_t i = 0; i < grid.numSamples(); i++) {
@@ -80,37 +118,46 @@ std::unique_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::buildUniformGrid(const 
 }
 
 
-/**
-TODO:
+// Malla rectilÔøΩnea
+std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(
+    const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
 
-Cambia en los siguientes mÈtodos la forma de construir las mallas para que, con el mismo n˙mero de muestras
-que la malla uniforme, se obtenga una mejor aproximaciÛn a la funciÛn original.
-La versiÛn que se entrega define todas las mallas iguales (las muestras est·n equiespaciadas)
-*/
+    std::vector<float> posX, posY;
 
-// Malla rectilÌnea
-std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
-	std::vector<float> posX;
-	for (int i = 0; i < horizontalVtcs; i++) {
-		posX.push_back((max.x - min.x) * i / (horizontalVtcs - 1) + min.x);
-	}
-	std::vector<float> posY;
-	for (int i = 0; i < verticalVtcs; i++) {
-		posY.push_back((max.y - min.y) * i / (verticalVtcs - 1) + min.y);
-	}
+    for (int i = 0; i < horizontalVtcs; i++) {
+        float t = static_cast<float>(i) / (horizontalVtcs - 1);
+        posX.push_back(min.x + (max.x - min.x) * (t * t)); // M√°s denso en un extremo
+    }
+
+    for (int i = 0; i < verticalVtcs; i++) {
+        float t = static_cast<float>(i) / (verticalVtcs - 1);
+        posY.push_back(min.y + (max.y - min.y) * std::sin(t * glm::half_pi<float>())); // M√°s denso en el centro
+    }
+
 	auto rectilinearGrid = std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>(new vdc::RectilinearGrid<glm::vec2, float>(posX, posY));
 	fillSamples(*rectilinearGrid);
 	return rectilinearGrid;
 }
 
 // Malla estructurada
-std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
+std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(
+	const int horizontalVtcs, const int verticalVtcs, const glm::vec2 &min, const glm::vec2 &max) {
+
 	auto structuredGrid = std::unique_ptr < vdc::StructuredGrid<glm::vec2, float>>(new vdc::StructuredGrid<glm::vec2, float>({ horizontalVtcs, verticalVtcs }));
 	size_t i = 0;
+
 	auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
+	std::default_random_engine generator;
+	std::uniform_real_distribution<float> jitter(-0.1f, 0.1f); // Perturbaci√≥n peque√±a
+
 	for (int y = 0; y < verticalVtcs; y++) {
 		for (int x = 0; x < horizontalVtcs; x++) {
 			glm::vec2 pos = min + glm::vec2{ x, y } *offset;
+
+			// Perturbaci√≥n aleatoria dentro de un rango
+			pos.x += jitter(generator) * offset.x;
+			pos.y += jitter(generator) * offset.y;
+
 			structuredGrid->setSamplePosition(i++, pos);
 		}
 	}
@@ -119,57 +166,117 @@ std::unique_ptr<vdc::StructuredGrid<glm::vec2, float>> vdc::buildStructuredGrid(
 }
 
 // Malla no estructurada
-std::unique_ptr<vdc::UnstructuredTriangleGrid<glm::vec2, float>> vdc::buildUnstructuredGrid(const int horizontalVtcs, const int verticalVtcs, const glm::vec2& min, const glm::vec2& max) {
+std::unique_ptr<vdc::UnstructuredTriangleGrid<glm::vec2, float>>
+vdc::buildUnstructuredGrid(const int horizontalVtcs, const int verticalVtcs,
+                           const glm::vec2& min, const glm::vec2& max) {
+
 	auto unstructuredGrid = std::unique_ptr < vdc::UnstructuredTriangleGrid<glm::vec2, float>>(
 		new vdc::UnstructuredTriangleGrid<glm::vec2, float>(
 			{ static_cast<size_t>(horizontalVtcs) * verticalVtcs, 2ULL * (horizontalVtcs - 1) * (verticalVtcs - 1) }));
-	size_t i = 0;
+						
+    std::default_random_engine generator(std::random_device{}());
+    std::uniform_real_distribution<float> jitter(-0.1f, 0.1f);
 
-	auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
-	for (int y = 0; y < verticalVtcs; y++) {
-		for (int x = 0; x < horizontalVtcs; x++) {
-			glm::vec2 pos = min + glm::vec2{ x, y } *offset;
-			unstructuredGrid->setSamplePosition(i++, pos);
-		}
-	}
+    size_t i = 0;
+    auto offset = (max - min) / glm::vec2{ horizontalVtcs - 1, verticalVtcs - 1 };
 
-	fillSamples(*unstructuredGrid);
-	assert(i == horizontalVtcs * verticalVtcs);
+    // Generar posiciones con variaci√≥n solo en puntos internos
+    for (int y = 0; y < verticalVtcs; y++) {
+        for (int x = 0; x < horizontalVtcs; x++) {
+            glm::vec2 pos = min + glm::vec2{x, y} * offset;
 
-	i = 0;
-	for (int cellY = 0; cellY < verticalVtcs - 1; cellY++) {
-		for (int cellX = 0; cellX < horizontalVtcs - 1; cellX++) {
+            // Agregar ruido solo si no es un punto de borde
+            if (x > 0 && x < horizontalVtcs - 1 && y > 0 && y < verticalVtcs - 1) {
+                pos.x += jitter(generator) * offset.x;
+                pos.y += jitter(generator) * offset.y;
+            }
+
+            unstructuredGrid->setSamplePosition(i++, pos);
+        }
+    }
+
+    fillSamples(*unstructuredGrid);
+
+    // Conectar los puntos en un patr√≥n Zig-Zag
+    i = 0;
+    for (int cellY = 0; cellY < verticalVtcs - 1; cellY++) {
+        for (int cellX = 0; cellX < horizontalVtcs - 1; cellX++) {
+            size_t v0 = cellX + cellY * horizontalVtcs;
+            size_t v1 = v0 + 1;
+            size_t v2 = v0 + horizontalVtcs;
+            size_t v3 = v2 + 1;
+
+            // Alternar triangulaci√≥n para mejorar la representaci√≥n
 			size_t v[3];
-			size_t firstV = cellX + horizontalVtcs * cellY;
-			v[0] = firstV;
-			v[1] = firstV + 1;
-			v[2] = v[1] + horizontalVtcs;
-			unstructuredGrid->setCell(i++, v);
+            if ((cellX + cellY) % 2 == 0) {
+				v[0] = v0;
+				v[1] = v1;
+				v[2] = v3;	
+                unstructuredGrid->setCell(i++, v);
 
-			v[0] = firstV;
-			v[1] = firstV + 1 + horizontalVtcs;
-			v[2] = v[1] - 1;
-			unstructuredGrid->setCell(i++, v);
-		}
-	}
+				v[0] = v0;
+				v[1] = v3;
+				v[2] = v2;	
+                unstructuredGrid->setCell(i++, v);
+            } else {
+				v[0] = v1;
+				v[1] = v3;
+				v[2] = v2;	
+                unstructuredGrid->setCell(i++, v);
+
+				v[0] = v1;
+				v[1] = v2;
+				v[2] = v0;	
+                unstructuredGrid->setCell(i++, v);
+            }
+        }
+    }
 	assert(i == (horizontalVtcs - 1) * (verticalVtcs - 1) * 2);
-	return unstructuredGrid;
+    return unstructuredGrid;
 }
 
-/**
-TODO:
 
-Tendr·s que implementar el algoritmo de derivaciÛn visto en clase.
+std::shared_ptr<vdc::StructuredGrid<glm::vec2, glm::vec2>>
+vdc::derivative(const vdc::UniformGrid<glm::vec2, float> &g) {
+	// Obtener dimensiones de la malla
+	int nx = g.getNumSamplesPerDimension(0);
+	int ny = g.getNumSamplesPerDimension(1);
+	auto result = std::make_shared<vdc::StructuredGrid<glm::vec2, glm::vec2>>(std::vector<int>{nx, ny});
 
-*/
+	// Obtener tama√±o de celda en cada direcci√≥n
+	float dx = (g.getSamplePosition(1).x - g.getSamplePosition(0).x);
+	float dy = (g.getSamplePosition(nx).y - g.getSamplePosition(0).y);
 
-std::shared_ptr<vdc::StructuredGrid<glm::vec2, glm::vec2>> vdc::derivative(const vdc::UniformGrid<glm::vec2, float>& g) {
-	std::vector<int> dims{ g.getNumSamplesPerDimension(0), g.getNumSamplesPerDimension(1) };
-	auto result = std::make_shared<vdc::StructuredGrid<glm::vec2, glm::vec2>>(dims);
+	// Calcular derivadas parciales
+	for (int y = 0; y < ny; y++) {
+		for (int x = 0; x < nx; x++) {
+			int i = x + y * nx; // √çndice lineal
 
-	for (size_t i = 0; i < g.numSamples(); i++) {
-		result->setSamplePosition(i, g.getSamplePosition(i));
-		result->setSampleValue(i, glm::vec2(1, 1));
+			float dfdx = 0.0f, dfdy = 0.0f;
+
+			// Derivada en X
+			if (x > 0 && x < nx - 1) {
+				dfdx = (g.getSampleValue(i + 1) - g.getSampleValue(i - 1)) / (2 * dx); // Diferencias centrales
+			} else if (x == 0) {
+				dfdx = (g.getSampleValue(i + 1) - g.getSampleValue(i)) / dx; // Diferencias hacia adelante
+			} else {
+				dfdx = (g.getSampleValue(i) - g.getSampleValue(i - 1)) / dx; // Diferencias hacia atr√°s
+			}
+
+			// Derivada en Y
+			if (y > 0 && y < ny - 1) {
+				dfdy = (g.getSampleValue(i + nx) - g.getSampleValue(i - nx)) / (2 * dy); // Diferencias centrales
+			} else if (y == 0) {
+				dfdy = (g.getSampleValue(i + nx) - g.getSampleValue(i)) / dy; // Diferencias hacia adelante
+			} else {
+				dfdy = (g.getSampleValue(i) - g.getSampleValue(i - nx)) / dy; // Diferencias hacia atr√°s
+			}
+
+			// Asignar posici√≥n y valor de la derivada
+			result->setSamplePosition(i, g.getSamplePosition(i));
+			result->setSampleValue(i, glm::vec2(dfdx, dfdy));
+		}
 	}
+
 	return result;
 }

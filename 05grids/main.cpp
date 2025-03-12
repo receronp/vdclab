@@ -18,14 +18,6 @@ los diferentes tipos de malla.
 
 */
 
-/*
-
-TODO: Completa la función findMinMaxSamples para que, dada una malla, devuelva el índice de
-  la muestra con el valor mínimo y el índice de la muestra con el valor máximo.
-
-  Usa la siguiente estructura para devolver dichos valores
-
-*/
 
 struct MinMaxSamples {
 	size_t minIdx, // Índice de la muestra con valor mínimo
@@ -41,18 +33,25 @@ Devuelve el índice de las muestras con el valor mínimo y máximo
 MinMaxSamples findMinMaxSamples(const vdc::Grid<glm::vec2, float> &grid) {
 
 	// Inserta aquí tu código
+	float min = FLT_MAX, max = -FLT_MAX;
+	size_t minIdx = 0, maxIdx = 0;
 
-	return MinMaxSamples{ 0, 0 };
+	// Recorre todas las muestras de la malla y busca el valor mínimo y máximo
+	for (size_t sampleIdx = 0; sampleIdx < grid.numSamples(); sampleIdx++) {
+		float v = grid.getSampleValue(sampleIdx);
+		if (v < min) {
+			min = v;
+			minIdx = sampleIdx;
+		}
+		if (v > max) {
+			max = v;
+			maxIdx = sampleIdx;
+		}
+	}
+
+	return MinMaxSamples{minIdx, maxIdx};
 }
 
-
-/*
-
-TODO
-Completa la función findMaxRangeCell para devolver la celda de la malla dada que
-contiene las muestras con una diferencia entre el valor de sus muestras más grande.
-
-*/
 
 /**
 Encuentra la celda con el rango máximo en el valor de sus muestras
@@ -63,8 +62,30 @@ Encuentra la celda con el rango máximo en el valor de sus muestras
 size_t findMaxRangeCell(const vdc::Grid<glm::vec2, float> &grid) {
 
 	// Inserta aquí tu código
+	size_t maxRangeCellIdx = 0;
+	float maxRange = 0;
 
-	return 0;
+	// Recorre todas las celdas de la malla y calcula el rango de valores de sus muestras
+	for (size_t cellIdx = 0; cellIdx < grid.numCells(); cellIdx++) {
+		size_t cells[4];
+		size_t nc = grid.getCellSamples(cellIdx, cells);
+
+		float minV = FLT_MAX, maxV = -FLT_MAX;
+		minV = maxV = grid.getSampleValue(cells[0]);
+		for (size_t j = 0; j < nc; j++) {
+			float v = grid.getSampleValue(cells[j]);
+			if (v < minV) minV = v;
+			else if (v > maxV) maxV = v;
+		}
+
+		float range = maxV - minV;
+		if (range > maxRange) {
+			maxRange = range;
+			maxRangeCellIdx = cellIdx;
+		}
+	}
+
+	return maxRangeCellIdx;
 }
 
 
