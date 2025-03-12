@@ -1,25 +1,6 @@
 #include <random>
 #include "buildModel.h"
 
-/**
-
-TODO:
-
-Construye un modelo de PGUPV con una representaci�n de mapa de alturas con la malla dada.
-La malla de entrada es de dimensi�n 2, y tiene un atributo de tipo float.
-Si las coordenadas de una muestra son (x, y), y su atributo es h, el v�rtice que lo representar�
-estar� en:
-
-glm::vec3(x, h, -y)
-
-Si las celdas son tri�ngulos (es decir, la funci�n getCellSamples devuelve 3), se deber� dibujar un tri�ngulo
-de OpenGL por celda. Si las celdas son cuadril�teros (es decir, la funci�n getCellSamples devuelve 4), se deber�n dibujar 2
-tri�ngulos por celda.
-
-Tambi�n deber�s establecer el color de cada v�rtice. Dise�a tu propio mapa de colores, teniendo en cuenta el rango de
-valores de las muestras de entrada.
-
-*/
 
 struct MinMaxSamples {
 	size_t minIdx, // Índice de la muestra con valor mínimo
@@ -136,14 +117,6 @@ std::unique_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::buildUniformGrid(const 
 	return uniformGrid;
 }
 
-
-/**
-TODO:
-
-Cambia en los siguientes m�todos la forma de construir las mallas para que, con el mismo n�mero de muestras
-que la malla uniforme, se obtenga una mejor aproximaci�n a la funci�n original.
-La versi�n que se entrega define todas las mallas iguales (las muestras est�n equiespaciadas)
-*/
 
 // Malla rectil�nea
 std::unique_ptr<vdc::RectilinearGrid<glm::vec2, float>>  vdc::buildRectilinearGrid(
@@ -262,12 +235,6 @@ vdc::buildUnstructuredGrid(const int horizontalVtcs, const int verticalVtcs,
     return unstructuredGrid;
 }
 
-/**
-TODO:
-
-Tendr�s que implementar el algoritmo de derivaci�n visto en clase.
-
-*/
 
 std::shared_ptr<vdc::StructuredGrid<glm::vec2, glm::vec2>>
 vdc::derivative(const vdc::UniformGrid<glm::vec2, float> &g) {

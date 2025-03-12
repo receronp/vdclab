@@ -18,14 +18,6 @@ los diferentes tipos de malla.
 
 */
 
-/*
-
-TODO: Completa la función findMinMaxSamples para que, dada una malla, devuelva el índice de
-  la muestra con el valor mínimo y el índice de la muestra con el valor máximo.
-
-  Usa la siguiente estructura para devolver dichos valores
-
-*/
 
 struct MinMaxSamples {
 	size_t minIdx, // Índice de la muestra con valor mínimo
@@ -60,14 +52,6 @@ MinMaxSamples findMinMaxSamples(const vdc::Grid<glm::vec2, float> &grid) {
 	return MinMaxSamples{minIdx, maxIdx};
 }
 
-
-/*
-
-TODO
-Completa la función findMaxRangeCell para devolver la celda de la malla dada que
-contiene las muestras con una diferencia entre el valor de sus muestras más grande.
-
-*/
 
 /**
 Encuentra la celda con el rango máximo en el valor de sus muestras
