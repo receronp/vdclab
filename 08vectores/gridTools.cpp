@@ -12,25 +12,63 @@ void vdc::sampleVectorField(vdc::Grid<glm::vec2, glm::vec2> &g, std::function<gl
 
 /**
 
-Completa esta función:
+Completa esta funciï¿½n:
 
-La función devuelve un modelo PGUPV con un segmento de línea (dos vértices) por cada muestra de la malla g. 
-Dicha línea apunta en la dirección indicada por el valor de la muestra, y tiene una longitud de k.
+La funciï¿½n devuelve un modelo PGUPV con un segmento de lï¿½nea (dos vï¿½rtices) por cada muestra de la malla g. 
+Dicha lï¿½nea apunta en la direcciï¿½n indicada por el valor de la muestra, y tiene una longitud de k.
 
 */
 
 std::shared_ptr<Model> vdc::computeHedgeHog(const vdc::Grid<glm::vec2, glm::vec2> &g, float k) {
   auto result = std::make_shared<Model>();
+  auto mesh = std::make_shared<PGUPV::Mesh>();
+
+  std::vector<glm::vec3> vertices;
+  std::vector<glm::vec4> colors;
+
+  float maxMagnitude = 0.0f;
+  for (size_t i = 0; i < g.numSamples(); i++) {
+    glm::vec2 vector = g.getSampleValue(i);
+    float magnitude = glm::length(vector);
+    if (magnitude > maxMagnitude) {
+      maxMagnitude = magnitude;
+    }
+  }
+
+  for (size_t i = 0; i < g.numSamples(); i++) {
+    glm::vec2 position = g.getSamplePosition(i);
+    glm::vec2 vector = g.getSampleValue(i);
+
+    float magnitude = glm::length(vector);
+    glm::vec2 direction = (magnitude > 0.0f) ? glm::normalize(vector) : glm::vec2(0.0f);
+
+    glm::vec3 start(position, 0.0f);
+    glm::vec3 end(position + k * direction, 0.0f);
+
+    vertices.push_back(start);
+    vertices.push_back(end);
+
+    float normalizedMagnitude = maxMagnitude > 0.0f ? magnitude / maxMagnitude : 0.0f;
+    glm::vec4 color = glm::vec4(normalizedMagnitude, 0.0f, 1.0f - normalizedMagnitude, 1.0f);
+
+    colors.push_back(color);
+    colors.push_back(color);
+  }
+
+  mesh->addVertices(vertices);
+  mesh->addColors(colors);
+  mesh->addDrawCommand(new PGUPV::DrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size())));
+  result->addMesh(mesh);
 
   return result;
 }
 
 /**
 
-Completa esta función:
+Completa esta funciï¿½n:
 
-La función devuelve una malla uniforme del mismo tamaño que la malla de entrada. En vez de ser 
-una malla vectorial, será una malla escalar, cuyas muestras serán el valor de la divergencia de 
+La funciï¿½n devuelve una malla uniforme del mismo tamaï¿½o que la malla de entrada. En vez de ser 
+una malla vectorial, serï¿½ una malla escalar, cuyas muestras serï¿½n el valor de la divergencia de 
 la muestra correspondiente de la malla de entrada:
 
 */
@@ -40,9 +78,49 @@ std::shared_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::computeDivergence(const
   std::vector<int> dims{ g.getNumSamplesPerDimension(0), g.getNumSamplesPerDimension(1) };
   auto result = std::make_shared<vdc::UniformGrid<glm::vec2, float>>(g.getMinCoord(), g.getMaxCoord(), dims);
 
-  // Borra el siguiente código
-  for (size_t i = 0; i < result->numSamples(); i++) {
-    result->setSampleValue(i, 0.0f);
+  float dx = (g.getMaxCoord().x - g.getMinCoord().x) / (dims[0] - 1);
+  float dy = (g.getMaxCoord().y - g.getMinCoord().y) / (dims[1] - 1);
+
+  for (int j = 0; j < dims[1]; j++) {
+    for (int i = 0; i < dims[0]; i++) {
+      size_t idx = i + j * dims[0];
+
+      float divergence = 0.0f;
+
+      if (i > 0 && i < dims[0] - 1) {
+        glm::vec2 left = g.getSampleValue(idx - 1);
+        glm::vec2 right = g.getSampleValue(idx + 1);
+        divergence += (right.x - left.x) / (2.0f * dx);
+      }
+      else if (i == 0) {
+        glm::vec2 right = g.getSampleValue(idx + 1);
+        glm::vec2 center = g.getSampleValue(idx);
+        divergence += (right.x - center.x) / dx;
+      }
+      else if (i == dims[0] - 1) {
+        glm::vec2 left = g.getSampleValue(idx - 1);
+        glm::vec2 center = g.getSampleValue(idx);
+        divergence += (center.x - left.x) / dx;
+      }
+
+      if (j > 0 && j < dims[1] - 1) {
+        glm::vec2 bottom = g.getSampleValue(idx - dims[0]);
+        glm::vec2 top = g.getSampleValue(idx + dims[0]);
+        divergence += (top.y - bottom.y) / (2.0f * dy);
+      }
+      else if (j == 0) {
+        glm::vec2 top = g.getSampleValue(idx + dims[0]);
+        glm::vec2 center = g.getSampleValue(idx);
+        divergence += (top.y - center.y) / dy;
+      }
+      else if (j == dims[1] - 1) {
+        glm::vec2 bottom = g.getSampleValue(idx - dims[0]);
+        glm::vec2 center = g.getSampleValue(idx);
+        divergence += (center.y - bottom.y) / dy;
+      }
+
+      result->setSampleValue(idx, divergence);
+    }
   }
 
   return result;
@@ -50,9 +128,9 @@ std::shared_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::computeDivergence(const
 
 
 /*
-Completa esta función:
+Completa esta funciï¿½n:
 
-La función devuelve una malla escalar de la misma dimensión que la malla de entrada, donde cada muestra 
+La funciï¿½n devuelve una malla escalar de la misma dimensiï¿½n que la malla de entrada, donde cada muestra 
 contiene la magnitud de la vorticidad de la muestra correspondiente de la malla de entrada.
 
 */
@@ -61,9 +139,45 @@ std::shared_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::computeVorticity(const 
   std::vector<int> dims{ g.getNumSamplesPerDimension(0), g.getNumSamplesPerDimension(1) };
   auto result = std::make_shared<vdc::UniformGrid<glm::vec2, float>>(g.getMinCoord(), g.getMaxCoord(), dims);
 
-  // Borra el siguiente código
-  for (size_t i = 0; i < result->numSamples(); i++) {
-	  result->setSampleValue(i, 0.0f);
+  float dx = (g.getMaxCoord().x - g.getMinCoord().x) / (dims[0] - 1);
+  float dy = (g.getMaxCoord().y - g.getMinCoord().y) / (dims[1] - 1);
+
+  for (int j = 0; j < dims[1]; j++) {
+    for (int i = 0; i < dims[0]; i++) {
+      size_t idx = i + j * dims[0];
+      
+      float vorticity = 0.0f;
+
+      if (i > 0 && i < dims[0] - 1) {
+        glm::vec2 left = g.getSampleValue(idx - 1);
+        glm::vec2 right = g.getSampleValue(idx + 1);
+        vorticity += (right.y - left.y) / (2.0f * dx);
+      } else if (i == 0) {
+        glm::vec2 right = g.getSampleValue(idx + 1);
+        glm::vec2 center = g.getSampleValue(idx);
+        vorticity += (right.y - center.y) / dx;
+      } else if (i == dims[0] - 1) {
+        glm::vec2 left = g.getSampleValue(idx - 1);
+        glm::vec2 center = g.getSampleValue(idx);
+        vorticity += (center.y - left.y) / dx;
+      }
+
+      if (j > 0 && j < dims[1] - 1) {
+        glm::vec2 bottom = g.getSampleValue(idx - dims[0]);
+        glm::vec2 top = g.getSampleValue(idx + dims[0]);
+        vorticity -= (top.x - bottom.x) / (2.0f * dy);
+      } else if (j == 0){
+        glm::vec2 top = g.getSampleValue(idx + dims[0]);
+        glm::vec2 center = g.getSampleValue(idx);
+        vorticity -= (top.x - center.x) / dy;
+      } else if (j == dims[1] - 1) {
+        glm::vec2 bottom = g.getSampleValue(idx - dims[0]);
+        glm::vec2 center = g.getSampleValue(idx);
+        vorticity -= (center.x - bottom.x) / dy;
+      }
+
+      result->setSampleValue(idx, vorticity);
+    }
   }
 
   return result;
@@ -71,17 +185,51 @@ std::shared_ptr<vdc::UniformGrid<glm::vec2, float>> vdc::computeVorticity(const 
 
 /*
 
-Completa la siguiente función. 
+Completa la siguiente funciï¿½n. 
 
-La función devuelve una malla de PGUPV con los vértices, colores y draw command 
-necesario para dibujar la línea de corriente que empieza en p0. El paso de integración 
-se pasa en el parámetro dt, maxT es el tiempo máximo de integración y maxL es 
-la longitud máxima de la línea de corriente.Por último, la línea se dibujará 
-del color indicado por el último parámetro.
+La funciï¿½n devuelve una malla de PGUPV con los vï¿½rtices, colores y draw command 
+necesario para dibujar la lï¿½nea de corriente que empieza en p0. El paso de integraciï¿½n 
+se pasa en el parï¿½metro dt, maxT es el tiempo mï¿½ximo de integraciï¿½n y maxL es 
+la longitud mï¿½xima de la lï¿½nea de corriente.Por ï¿½ltimo, la lï¿½nea se dibujarï¿½ 
+del color indicado por el ï¿½ltimo parï¿½metro.
 */
 
 std::shared_ptr<PGUPV::Mesh> vdc::computeStreamline(const vdc::UniformGrid<glm::vec2, glm::vec2> &g, glm::vec2 &p0, float dt, float maxT, float maxL, glm::vec4 color) {
-	auto result = std::make_shared<PGUPV::Mesh>();
+  auto result = std::make_shared<PGUPV::Mesh>();
 
-	return result;
+  std::vector<glm::vec3> vertices;
+  std::vector<glm::vec4> colors;
+
+  glm::vec2 currentPoint = p0;
+  float totalTime = 0.0f;
+  float totalLength = 0.0f;
+
+  vertices.push_back(glm::vec3(currentPoint, 0.0f));
+  colors.push_back(color);
+
+  while (totalTime < maxT && totalLength < maxL) {
+    size_t cellIdx;
+    if (!g.findCell(currentPoint, cellIdx)) {
+      break;
+    }
+
+    glm::vec2 refCoords = g.world2cell(cellIdx, currentPoint);
+    glm::vec2 vector = g.interpolateC1Square(cellIdx, refCoords);
+    glm::vec2 nextPoint = currentPoint + vector * dt;
+
+    float segmentLength = glm::length(nextPoint - currentPoint);
+    totalLength += segmentLength;
+    totalTime += dt;
+
+    vertices.push_back(glm::vec3(nextPoint, 0.0f));
+    colors.push_back(color);
+    currentPoint = nextPoint;
+  }
+
+  result->addVertices(vertices);
+  result->addColors(colors);
+
+  result->addDrawCommand(new PGUPV::DrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(vertices.size())));
+
+  return result;
 }
