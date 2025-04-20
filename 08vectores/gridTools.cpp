@@ -204,6 +204,34 @@ std::shared_ptr<PGUPV::Mesh> vdc::computeStreamline(const vdc::UniformGrid<glm::
   float totalTime = 0.0f;
   float totalLength = 0.0f;
 
+  float maxDivergence = -std::numeric_limits<float>::infinity();
+  float minDivergence = std::numeric_limits<float>::infinity();
+
+  for (size_t i = 0; i < g.numSamples(); i++) {
+    glm::vec2 position = g.getSamplePosition(i);
+
+    float divergence = 0.0f;
+
+    size_t idx = i;
+    int dimsX = g.getNumSamplesPerDimension(0);
+    int dimsY = g.getNumSamplesPerDimension(1);
+
+    if (i % dimsX > 0 && i % dimsX < dimsX - 1) {
+      glm::vec2 left = g.getSampleValue(idx - 1);
+      glm::vec2 right = g.getSampleValue(idx + 1);
+      divergence += (right.x - left.x) / (2.0f * (g.getMaxCoord().x - g.getMinCoord().x) / (dimsX - 1));
+    }
+
+    if (i / dimsX > 0 && i / dimsX < dimsY - 1) {
+      glm::vec2 bottom = g.getSampleValue(idx - dimsX);
+      glm::vec2 top = g.getSampleValue(idx + dimsX);
+      divergence += (top.y - bottom.y) / (2.0f * (g.getMaxCoord().y - g.getMinCoord().y) / (dimsY - 1));
+    }
+
+    maxDivergence = std::max(maxDivergence, divergence);
+    minDivergence = std::min(minDivergence, divergence);
+  }
+
   vertices.push_back(glm::vec3(currentPoint, 0.0f));
   colors.push_back(color);
 
@@ -215,6 +243,37 @@ std::shared_ptr<PGUPV::Mesh> vdc::computeStreamline(const vdc::UniformGrid<glm::
 
     glm::vec2 refCoords = g.world2cell(cellIdx, currentPoint);
     glm::vec2 vector = g.interpolateC1Square(cellIdx, refCoords);
+
+    float divergence = 0.0f;
+
+    int dimsX = g.getNumSamplesPerDimension(0);
+    int dimsY = g.getNumSamplesPerDimension(1);
+
+    if (cellIdx % dimsX > 0 && cellIdx % dimsX < dimsX - 1) {
+      glm::vec2 left = g.getSampleValue(cellIdx - 1);
+      glm::vec2 right = g.getSampleValue(cellIdx + 1);
+      divergence += (right.x - left.x) / (2.0f * (g.getMaxCoord().x - g.getMinCoord().x) / (dimsX - 1));
+    }
+
+    if (cellIdx / dimsX > 0 && cellIdx / dimsX < dimsY - 1) {
+      glm::vec2 bottom = g.getSampleValue(cellIdx - dimsX);
+      glm::vec2 top = g.getSampleValue(cellIdx + dimsX);
+      divergence += (top.y - bottom.y) / (2.0f * (g.getMaxCoord().y - g.getMinCoord().y) / (dimsY - 1));
+    }
+
+    float normalizedDivergence = (divergence - minDivergence) / (maxDivergence - minDivergence);
+
+    glm::vec4 mapcolorDivergence;
+    if (normalizedDivergence < 0.25f) {
+      mapcolorDivergence = glm::mix(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f), glm::vec4(0.0f, 1.0f, 1.0f, 1.0f), normalizedDivergence * 4.0f);
+    } else if (normalizedDivergence < 0.5f) {
+      mapcolorDivergence = glm::mix(glm::vec4(0.0f, 1.0f, 1.0f, 1.0f), glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), (normalizedDivergence - 0.25f) * 4.0f);
+    } else if (normalizedDivergence < 0.75f) {
+      mapcolorDivergence = glm::mix(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), (normalizedDivergence - 0.5f) * 4.0f);
+    } else {
+      mapcolorDivergence = glm::mix(glm::vec4(1.0f, 1.0f, 0.0f, 1.0f), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f), (normalizedDivergence - 0.75f) * 4.0f);
+    }
+
     glm::vec2 nextPoint = currentPoint + vector * dt;
 
     float segmentLength = glm::length(nextPoint - currentPoint);
@@ -222,7 +281,7 @@ std::shared_ptr<PGUPV::Mesh> vdc::computeStreamline(const vdc::UniformGrid<glm::
     totalTime += dt;
 
     vertices.push_back(glm::vec3(nextPoint, 0.0f));
-    colors.push_back(color);
+    colors.push_back(mapcolorDivergence);
     currentPoint = nextPoint;
   }
 
